@@ -68,7 +68,7 @@ def generate_table():
             column_status.append(WHITE)
     
     # Print the table with highlighted columns
-    print("Regulation Condition Table")
+    print("Regulation Condition Table (#activators, #inhibitors)")
     print("", *[f"{color}{str(combi)[1:-1]}{WHITE}" for color, combi in zip(column_status, combinations)], sep="\t")
     for i, row in enumerate(table):
         print(f"R{i}", end="\t")
