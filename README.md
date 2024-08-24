@@ -8,7 +8,7 @@ Also, reviewed an article regurding boolean networks.
 ## Authors
 
 - [Erel Dekel](https://github.com/Dekel23)
-- [Yoav Groman](https://pornhub.com)
+- [Yoav Groman](https://github.com/yopro1100p)
 
 
 ## Run Locally
