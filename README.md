@@ -35,4 +35,4 @@ Make sure you added Python to PATH
   python final_project.py
 ```
 
-Provided a picture of the terminal on how the output should look
+Picture of the terminal on how the output should look, the article the program is based on, are provided in the repo
