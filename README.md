@@ -1,4 +1,5 @@
 
+
 # Biological Computation
 
 In this project, we wrote a program that finds all the
@@ -9,7 +10,17 @@ Also, reviewed an article regurding boolean networks.
 
 - [Erel Dekel](https://github.com/Dekel23)
 - [Yoav Groman](https://github.com/yopro1100p)
-  
+
+## Contaning
+
+1. README.md - This file, describing the project
+
+2. final_project.py - Code answers the first part of the project
+
+3. output.png - Picture of the output of the code in the terminal
+
+4. Biological_Computation ErelDekel YoavGroman.pdf - PDF file that answers the second part of the project
+
 ## Run Program Locally
 
 1. Clone the project
