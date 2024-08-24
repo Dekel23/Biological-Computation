@@ -75,5 +75,6 @@ def generate_table():
         print(*[f"{color}{val}{WHITE}" for color, val in zip(column_status, row)], sep="\t")
 
 if __name__ == "__main__":
-    # Generate and print table for 2 presented activators and 2 presented inhibitors
+    # Generate and print table for 2 presented activators and 2 presented inhibitors (table D)
     generate_table()
+    # to see tables A, B and C one can look only on the corresponding columns in table D
