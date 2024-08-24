@@ -8,7 +8,7 @@ Also, reviewed an article regurding boolean networks.
 ## Authors
 
 - [Erel Dekel](https://github.com/Dekel23)
-- [Yoav Groman](https://pornhub.com)
+- [Yoav Groman](https://github.com/yopro1100p)
 
 
 ## Run Locally
@@ -35,4 +35,5 @@ Make sure you added Python to PATH
   python final_project.py
 ```
 
-Provided a picture of the terminal on how the output should look
+A picture of the terminal on how the output should look is provided in the repo\
+See also the article the program is based on [here](https://lemida.biu.ac.il/pluginfile.php/3399832/mod_resource/content/1/npjsba201610%20%283%29.pdf)
