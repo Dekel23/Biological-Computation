@@ -35,5 +35,5 @@ Make sure you added Python to PATH
   python final_project.py
 ```
 
-A picture of the terminal on how the output should look is provided in the repo
+A picture of the terminal on how the output should look is provided in the repo\
 See also the article the program is based on [here](https://lemida.biu.ac.il/pluginfile.php/3399832/mod_resource/content/1/npjsba201610%20%283%29.pdf)
