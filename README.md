@@ -9,9 +9,8 @@ Also, reviewed an article regurding boolean networks.
 
 - [Erel Dekel](https://github.com/Dekel23)
 - [Yoav Groman](https://github.com/yopro1100p)
-
-
-## Run Locally
+  
+## Run Program Locally
 
 1. Clone the project
 
