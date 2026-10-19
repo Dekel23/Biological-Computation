@@ -1,0 +1,11 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+SQLAlchemy==2.0.36
+pydantic==2.10.4
+httpx==0.28.1
+APScheduler==3.11.0
+tzdata==2024.2
+python-dotenv==1.0.1
+
+# testing
+pytest==8.3.4
