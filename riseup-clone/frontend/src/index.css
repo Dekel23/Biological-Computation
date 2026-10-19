@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Semantic tokens (space-separated RGB so Tailwind can apply alpha). */
+:root {
+  color-scheme: light;
+  --surface: 246 245 251;
+  --card: 255 255 255;
+  --sunken: 239 237 247;
+  --line: 228 225 238;
+  --ink: 24 20 38;
+  --ink-2: 82 78 98;
+  --muted: 120 116 138;
+  --brand: 91 63 212;
+  --brand-soft: 237 233 254;
+  --brand-ink: 255 255 255;
+  --good: 12 163 12;
+  --warn: 250 178 25;
+  --bad: 208 59 59;
+
+  /* Chart tokens – validated categorical slots 1 & 2 (see dataviz palette). */
+  --chart-surface: #ffffff;
+  --chart-series-1: #2a78d6;
+  --chart-series-2: #eb6834;
+  --chart-reference: #a3a1b3;
+  --chart-grid: #ebe9f2;
+  --chart-axis: #787488;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --surface: 22 20 31;
+    --card: 32 29 44;
+    --sunken: 42 39 56;
+    --line: 54 50 70;
+    --ink: 240 239 236;
+    --ink-2: 195 194 183;
+    --muted: 150 146 166;
+    --brand: 140 117 245;
+    --brand-soft: 47 38 87;
+    --brand-ink: 255 255 255;
+    --chart-surface: #201d2c;
+    --chart-series-1: #3987e5;
+    --chart-series-2: #d95926;
+    --chart-reference: #6f6b82;
+    --chart-grid: #312d42;
+    --chart-axis: #9692a6;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --surface: 22 20 31;
+  --card: 32 29 44;
+  --sunken: 42 39 56;
+  --line: 54 50 70;
+  --ink: 240 239 236;
+  --ink-2: 195 194 183;
+  --muted: 150 146 166;
+  --brand: 140 117 245;
+  --brand-soft: 47 38 87;
+  --brand-ink: 255 255 255;
+  --chart-surface: #201d2c;
+  --chart-series-1: #3987e5;
+  --chart-series-2: #d95926;
+  --chart-reference: #6f6b82;
+  --chart-grid: #312d42;
+  --chart-axis: #9692a6;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  body {
+    @apply bg-surface text-ink font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+  /* Keep numbers with their sign and currency in RTL sentences. */
+  .num {
+    font-variant-numeric: tabular-nums;
+    unicode-bidi: isolate;
+    direction: ltr;
+    display: inline-block;
+  }
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-card rounded-2xl shadow-card border border-line/60;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-brand-ink hover:bg-brand/90;
+  }
+  .btn-ghost {
+    @apply btn bg-sunken text-ink hover:bg-line;
+  }
+  .input {
+    @apply w-full rounded-xl border border-line bg-card px-3 py-2.5 text-base text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-ink-2;
+  }
+  .chip {
+    @apply inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-card px-3 py-1.5 text-sm text-ink-2 transition;
+  }
+  .chip-active {
+    @apply border-brand bg-brand-soft text-brand;
+  }
+  .section-title {
+    @apply text-base font-semibold text-ink;
+  }
+}
+
+/* Safe areas for notched phones (PWA standalone). */
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0.75rem);
+}
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+
+/* Bottom-sheet animation */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.animate-sheet {
+  animation: sheet-up 0.22s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet {
+    animation: none;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.recharts-tooltip-wrapper {
+  outline: none;
+}
