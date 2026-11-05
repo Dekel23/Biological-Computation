@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, notifyDataChanged } from '../api'
+import { api, IS_LOCAL, notifyDataChanged } from '../api'
 import { useApi } from '../hooks/useApi'
 import { formatDateTime, parseWhatsAppMarkup } from '../utils/format'
 import { ErrorState, LoadingBlock, Spinner, useToast } from './ui'
@@ -120,7 +120,7 @@ export default function WhatsAppSimulator() {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold">{t('bot.title')}</h1>
+          <h1 className="text-xl font-semibold">{t(IS_LOCAL ? 'bot.titleLocal' : 'bot.title')}</h1>
           <p className="text-xs text-muted">
             {t('bot.subtitle')} ·{' '}
             <span className={status?.mode === 'live' ? 'text-good' : ''}>{t(`bot.mode.${status?.mode ?? 'simulated'}`)}</span>

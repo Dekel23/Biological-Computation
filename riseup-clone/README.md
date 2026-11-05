@@ -56,6 +56,7 @@ riseup-clone/
     └── src/
         ├── main.jsx · App.jsx · i18n.js · api.js · index.css
         ├── hooks/              # useApi, useCategories
+        ├── local/              # phone mode: the whole engine on the device + IndexedDB storage
         ├── utils/format.js     # Intl money/date formatting
         └── components/
             ├── Dashboard.jsx · TransactionsTable.jsx · WhatsAppSimulator.jsx
@@ -63,7 +64,31 @@ riseup-clone/
             └── ui.jsx          # Sheet, Toggle, MonthSwitcher, Toast…
 ```
 
-## Run it
+## Run it on your phone (no server)
+
+The phone build runs the whole app on the device: categorisation, Free to Spend, the bot, Subscription Radar and goals are all JavaScript (`frontend/src/local/`), and your data is stored only in the phone's IndexedDB. Once installed it works fully offline.
+
+1. **Build it** (on any computer, or let it be done for you – the built files are committed in the repository's `docs/` folder):
+   ```bash
+   cd riseup-clone/frontend
+   npm install
+   npm run build:phone        # writes ../../docs
+   ```
+2. **Host the files once over HTTPS.** With GitHub Pages: repository **Settings → Pages → Build and deployment → Source: Deploy from a branch**, pick the branch and the **/docs** folder, and save. A repository admin has to do this. The app is then at `https://<owner>.github.io/<repo>/`.
+3. **Install it.** Open that link on the phone:
+   * **iPhone (Safari):** Share → **Add to Home Screen**.
+   * **Android (Chrome):** ⋮ → **Install app** (or Add to Home screen).
+
+   From then on it opens from the home screen like any app, without the internet.
+
+How phone mode differs from the server version:
+
+* The first launch shows a demo household with a mock bank. **Settings → Your data → Start fresh** (or the banner on Home) wipes it and starts empty; then add your expected income, fixed expenses and budgets, and log spending with **+** or the **Bot** tab.
+* Data never leaves the phone. Use **Download backup** now and then: deleting the app or clearing the browser's site data erases it. **Restore from backup** brings it back on any phone.
+* The bot lives in the **Bot** tab instead of WhatsApp. The weekly summary (Sundays 09:00), the daily update (20:30) and budget alerts are delivered there – scheduled ones the next time the app is opened after their time – with a red dot on the tab. **Settings → Phone notifications** can also show them as notifications (iPhone: only for the home-screen app).
+* `npm test` runs the on-device engine's tests (the same cases as the backend's).
+
+## Run it on a computer
 
 Requirements: **Python 3.11+** and **Node.js 18+**.
 

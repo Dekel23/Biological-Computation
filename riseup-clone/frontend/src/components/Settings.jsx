@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, notifyDataChanged } from '../api'
+import { api, IS_LOCAL, notifyDataChanged } from '../api'
 import { LANGUAGES } from '../i18n'
 import { useApi } from '../hooks/useApi'
 import { useCategories } from '../hooks/useCategories'
+import { notificationsSupported, requestNotificationPermission } from '../local/phoneNotify'
 import { categoryName, formatDateTime, formatMoney } from '../utils/format'
 import { CategoryIcon, ErrorState, LoadingBlock, Toggle, useToast } from './ui'
 
@@ -17,6 +18,7 @@ export default function Settings() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{t('settings.title')}</h1>
+      {IS_LOCAL && <YourData />}
       <ProfileForm settings={settings} onSaved={setData} />
       <Notifications settings={settings} onSaved={setData} />
       <Budgets currency={settings.currency} />
@@ -63,11 +65,13 @@ function ProfileForm({ settings, onSaved }) {
         <label className="label" htmlFor="s-name">{t('settings.name')}</label>
         <input id="s-name" className="input" required maxLength={120} dir="auto" value={form.name} onChange={set('name')} />
       </div>
-      <div>
-        <label className="label" htmlFor="s-phone">{t('settings.phone')}</label>
-        <input id="s-phone" className="input num w-full text-start" type="tel" inputMode="tel" dir="ltr" value={form.phone ?? ''} onChange={set('phone')} />
-        <p className="mt-1 text-xs text-muted">{t('settings.phoneHelp')}</p>
-      </div>
+      {!IS_LOCAL && (
+        <div>
+          <label className="label" htmlFor="s-phone">{t('settings.phone')}</label>
+          <input id="s-phone" className="input num w-full text-start" type="tel" inputMode="tel" dir="ltr" value={form.phone ?? ''} onChange={set('phone')} />
+          <p className="mt-1 text-xs text-muted">{t('settings.phoneHelp')}</p>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label" htmlFor="s-lang">{t('settings.language')}</label>
@@ -114,10 +118,109 @@ function Notifications({ settings, onSaved }) {
   }
   return (
     <section className="card divide-y divide-line/60 px-4 pt-3">
-      <h2 className="section-title pb-1">💬 {t('settings.notifications')}</h2>
+      <h2 className="section-title pb-1">💬 {t(IS_LOCAL ? 'settings.notificationsLocal' : 'settings.notifications')}</h2>
       <Toggle id="n-weekly" label={t('settings.weekly')} help={t('settings.weeklyHelp')} checked={settings.weekly_summary_enabled} onChange={(v) => update('weekly_summary_enabled', v)} />
       <Toggle id="n-alerts" label={t('settings.alerts')} help={t('settings.alertsHelp')} checked={settings.budget_alerts_enabled} onChange={(v) => update('budget_alerts_enabled', v)} />
       <Toggle id="n-daily" label={t('settings.daily')} help={t('settings.dailyHelp')} checked={settings.daily_update_enabled} onChange={(v) => update('daily_update_enabled', v)} />
+      {IS_LOCAL && notificationsSupported() && <PhoneNotificationsToggle />}
+    </section>
+  )
+}
+
+function PhoneNotificationsToggle() {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const { data: enabled, setData } = useApi(() => api.phoneNotifications(), [])
+  const change = async (value) => {
+    if (value) {
+      const permission = await requestNotificationPermission()
+      if (permission !== 'granted') {
+        toast(t('settings.notifyBlocked'), 'error')
+        return
+      }
+    }
+    setData(value)
+    await api.setPhoneNotifications(value)
+  }
+  return <Toggle id="n-phone" label={t('settings.phoneNotify')} help={t('settings.phoneNotifyHelp')} checked={!!enabled} onChange={change} />
+}
+
+/** Phone mode: backups, start fresh, demo data. Everything lives only on this device. */
+function YourData() {
+  const { t, i18n } = useTranslation()
+  const toast = useToast()
+  const fileInput = useRef(null)
+  const lang = i18n.resolvedLanguage === 'he' ? 'he' : 'en'
+
+  const afterReplace = async () => {
+    const settings = await api.settings()
+    if (settings.language !== i18n.resolvedLanguage) i18n.changeLanguage(settings.language)
+    toast(t('settings.done'))
+    notifyDataChanged()
+  }
+
+  const download = async () => {
+    const data = await api.exportBackup()
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `bottom-line-backup-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const restore = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      await api.importBackup(JSON.parse(await file.text()))
+      await afterReplace()
+      toast(t('settings.imported'))
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
+
+  const startFresh = async () => {
+    if (!window.confirm(t('settings.startFreshConfirm'))) return
+    await api.startFresh({ name: '', language: lang })
+    await afterReplace()
+  }
+
+  const loadDemo = async () => {
+    if (!window.confirm(t('settings.loadDemoConfirm'))) return
+    await api.loadDemo({ language: lang })
+    await afterReplace()
+  }
+
+  return (
+    <section className="card space-y-3 p-4">
+      <div>
+        <h2 className="section-title">📱 {t('settings.data')}</h2>
+        <p className="text-xs text-muted">{t('settings.dataHelp')}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button className="btn-primary" onClick={download}>
+          ⬇ {t('settings.exportBackup')}
+        </button>
+        <button className="btn-ghost" onClick={() => fileInput.current?.click()}>
+          ⬆ {t('settings.importBackup')}
+        </button>
+        <input ref={fileInput} type="file" accept="application/json,.json" className="hidden" onChange={restore} />
+      </div>
+      <div className="border-t border-line/60 pt-3">
+        <button className="btn w-full text-bad hover:bg-bad/10" onClick={startFresh}>
+          {t('settings.startFresh')}
+        </button>
+        <p className="mt-1 text-center text-xs text-muted">{t('settings.startFreshHelp')}</p>
+        <button className="mt-2 w-full text-center text-xs font-medium text-brand" onClick={loadDemo}>
+          {t('settings.loadDemo')}
+        </button>
+      </div>
     </section>
   )
 }
@@ -282,6 +385,7 @@ function FixedExpenses({ currency }) {
 function BankAccounts() {
   const { t, i18n } = useTranslation()
   const { data: accounts } = useApi(() => api.accounts(), [])
+  if (IS_LOCAL && !accounts?.length) return null
   return (
     <section className="card p-4">
       <h2 className="section-title">🏦 {t('settings.banks')}</h2>

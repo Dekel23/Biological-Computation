@@ -57,8 +57,8 @@ export default function GoalsPage() {
           <div className="p-4">
             <p className="text-xs text-muted">{t('goals.needs')}</p>
             <p className={`num mt-1 text-xl font-semibold ${data.affordable ? 'text-good' : 'text-bad'}`}>
-              {money(data.total_required_monthly)}
-              <span className="ms-1 text-xs font-normal text-muted">{t('common.perMonth')}</span>
+              {money(data.total_required_monthly)}{' '}
+              <span className="text-xs font-normal text-muted">{t('common.perMonth')}</span>
             </p>
           </div>
           <p className="col-span-2 border-t border-line/60 px-4 py-3 text-sm">

@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { api, notifyDataChanged } from '../api'
+import { api, IS_LOCAL, notifyDataChanged } from '../api'
 import { useApi } from '../hooks/useApi'
 import { categoryName, currentMonth, formatCompact, formatDate, formatMoney, formatMonth } from '../utils/format'
 import { CategoryIcon, ErrorState, LoadingBlock, MonthSwitcher, Spinner, useToast } from './ui'
@@ -70,8 +70,17 @@ export default function Dashboard() {
         <MonthSwitcher month={month} onChange={setMonth} maxMonth={currentMonth()} />
       </div>
 
+      {data.demo && <DemoBanner />}
+      {IS_LOCAL && !data.demo && !bl.total_income && (
+        <p className="card p-4 text-sm text-ink-2">
+          💡 {t('dashboard.setupHint')}{' '}
+          <Link to="/settings" className="font-medium text-brand">
+            {t('nav.settings')} ›
+          </Link>
+        </p>
+      )}
       <HeroCard bl={bl} money={money} month={month} />
-      <SyncButton />
+      {data.bank_accounts !== 0 && <SyncButton />}
       <Highlights highlights={data.highlights} money={money} />
       <SpendingChart bl={bl} money={money} />
       <CategoryBreakdown categories={bl.categories} money={money} />
@@ -85,6 +94,8 @@ function HeroCard({ bl, money, month }) {
   const lang = i18n.language
   const status = STATUS_STYLE[bl.status]
   const negative = bl.free_to_spend < 0
+  // A brand-new, empty month has nothing to judge yet.
+  const hasData = bl.total_income || bl.fixed_expenses || bl.variable_expenses
 
   return (
     <section className="card overflow-hidden">
@@ -98,10 +109,12 @@ function HeroCard({ bl, money, month }) {
               <span className="num">{money(bl.free_to_spend)}</span>
             </p>
           </div>
-          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold ${status.cls}`}>
-            <span aria-hidden>{status.icon}</span>
-            {t(`dashboard.status.${bl.status}`)}
-          </span>
+          {hasData ? (
+            <span className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold ${status.cls}`}>
+              <span aria-hidden>{status.icon}</span>
+              {t(`dashboard.status.${bl.status}`)}
+            </span>
+          ) : null}
         </div>
         <p className="mt-2 text-sm opacity-90">
           {bl.days_left > 0
@@ -162,6 +175,25 @@ function Row({ label, value, note, sign }) {
         <span className="text-muted">{sign} </span>
         {value}
       </span>
+    </div>
+  )
+}
+
+function DemoBanner() {
+  const { t, i18n } = useTranslation()
+  const toast = useToast()
+  const startFresh = async () => {
+    if (!window.confirm(t('settings.startFreshConfirm'))) return
+    await api.startFresh({ name: '', language: i18n.resolvedLanguage === 'he' ? 'he' : 'en' })
+    toast(t('settings.done'))
+    notifyDataChanged()
+  }
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-brand-soft p-3 text-sm">
+      <span>🧪 {t('dashboard.demoBanner')}</span>
+      <button className="btn-primary shrink-0 px-3 py-2 text-xs" onClick={startFresh}>
+        {t('dashboard.demoAction')}
+      </button>
     </div>
   )
 }

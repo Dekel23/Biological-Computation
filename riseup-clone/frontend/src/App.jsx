@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { api, notifyDataChanged } from './api'
+import { api, IS_LOCAL, notifyDataChanged } from './api'
 import { LANGUAGES } from './i18n'
-import { useOnline } from './hooks/useApi'
+import { useApi, useOnline } from './hooks/useApi'
+import { showPhoneNotifications } from './local/phoneNotify'
 import { CategoriesProvider } from './hooks/useCategories'
 import { ToastProvider } from './components/ui'
 import Dashboard from './components/Dashboard'
@@ -48,7 +49,7 @@ function Header() {
     <header className="pt-safe sticky top-0 z-30 border-b border-line/60 bg-surface/90 backdrop-blur">
       <div className="mx-auto flex max-w-app items-center justify-between px-4 pb-3">
         <div className="flex items-center gap-2">
-          <img src="/favicon.svg" alt="" className="h-8 w-8" />
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-8 w-8" />
           <div className="leading-tight">
             <div className="font-semibold">{t('app.name')}</div>
             <div className="text-xs text-muted">{t('app.tagline')}</div>
@@ -62,6 +63,12 @@ function Header() {
 
 function BottomNav() {
   const { t } = useTranslation()
+  // Phone mode: proactive bot messages arrive in the app, so flag them on the Bot tab.
+  const { data: unread, reload } = useApi(() => (IS_LOCAL ? api.unread() : Promise.resolve(0)), [])
+  const { pathname } = useLocation()
+  useEffect(() => {
+    if (pathname === '/bot' && unread > 0) api.markRead().then(reload)
+  }, [pathname, unread, reload])
   return (
     <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-card/95 backdrop-blur" aria-label="Main">
       <ul className="mx-auto grid max-w-app grid-cols-5">
@@ -78,8 +85,11 @@ function BottomNav() {
             >
               {({ isActive }) => (
                 <>
-                  <span className={`rounded-full px-4 py-1 transition ${isActive ? 'bg-brand-soft' : ''}`}>
+                  <span className={`relative rounded-full px-4 py-1 transition ${isActive ? 'bg-brand-soft' : ''}`}>
                     <Icon />
+                    {key === 'bot' && unread > 0 && (
+                      <span className="absolute end-3 top-0.5 h-2.5 w-2.5 rounded-full bg-bad ring-2 ring-card" aria-label={String(unread)} />
+                    )}
                   </span>
                   {t(`nav.${key}`)}
                 </>
@@ -95,14 +105,41 @@ function BottomNav() {
 function OfflineBanner() {
   const online = useOnline()
   const { t } = useTranslation()
-  if (online) return null
+  // Phone mode needs no network at all.
+  if (online || IS_LOCAL) return null
   return <div className="bg-warn/20 px-4 py-2 text-center text-xs font-medium text-ink">{t('common.offline')}</div>
+}
+
+/** Phone mode: do on the device what the server's scheduler would (bank sync, weekly/daily updates). */
+function useDueJobs() {
+  const { t } = useTranslation()
+  useEffect(() => {
+    if (!IS_LOCAL) return undefined
+    const run = () =>
+      api
+        .runDueJobs()
+        .then(({ sent, phoneNotifications }) => {
+          if (!sent.length) return
+          notifyDataChanged()
+          if (phoneNotifications) showPhoneNotifications(sent, t('app.name'))
+        })
+        .catch(() => {})
+    run()
+    const timer = setInterval(run, 60_000)
+    const onVisible = () => document.visibilityState === 'visible' && run()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [t])
 }
 
 export default function App() {
   const { i18n } = useTranslation()
   const lang = i18n.resolvedLanguage === 'he' ? 'he' : 'en'
   const dir = LANGUAGES[lang].dir
+  useDueJobs()
 
   // The language picked on this device wins; tell the server so bot messages match.
   useEffect(() => {

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "build:phone": "vite build --mode phone"
   },
   "dependencies": {
     "i18next": "24.2.0",
@@ -20,9 +22,11 @@
   "devDependencies": {
     "@vitejs/plugin-react": "4.3.4",
     "autoprefixer": "10.4.20",
+    "fake-indexeddb": "6.0.0",
     "postcss": "8.4.49",
     "tailwindcss": "3.4.17",
     "vite": "5.4.11",
-    "vite-plugin-pwa": "0.21.1"
+    "vite-plugin-pwa": "0.21.1",
+    "vitest": "2.1.8"
   }
 }

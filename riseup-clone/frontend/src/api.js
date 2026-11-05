@@ -1,12 +1,12 @@
-const BASE = import.meta.env.VITE_API_BASE || '/api'
+import { ApiError } from './apiError'
+import { localApi } from './local/localApi'
 
-export class ApiError extends Error {
-  constructor(status, detail) {
-    super(typeof detail === 'string' ? detail : `Request failed (${status})`)
-    this.status = status
-    this.detail = detail
-  }
-}
+export { ApiError }
+
+/** "local": everything runs and is stored on the device (phone build). "server": FastAPI backend. */
+export const IS_LOCAL = import.meta.env.VITE_DATA_MODE === 'local'
+
+const BASE = import.meta.env.VITE_API_BASE || '/api'
 
 async function request(path, { method = 'GET', body, params } = {}) {
   const url = new URL(BASE + path, window.location.origin)
@@ -29,7 +29,7 @@ async function request(path, { method = 'GET', body, params } = {}) {
   return data
 }
 
-export const api = {
+const httpApi = {
   summary: (month) => request('/dashboard/summary', { params: { month } }),
   categories: () => request('/categories'),
 
@@ -65,6 +65,8 @@ export const api = {
   botProactive: (kind) => request(`/whatsapp/proactive/${kind}`, { method: 'POST' }),
   botClear: () => request('/whatsapp/messages', { method: 'DELETE' }),
 }
+
+export const api = IS_LOCAL ? localApi : httpApi
 
 /** Lightweight cross-screen invalidation: screens refetch when data they show changes. */
 const listeners = new Set()
