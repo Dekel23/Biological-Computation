@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>על האש · צלייה לקבוצה</title>
+  <meta name="description" content="מעלים צ'אט קבוצתי ומקבלים סיכום של מה שקרה וירידה אישית על כל אחד מחברי הקבוצה.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="על האש - דף הבית"><span aria-hidden="true">🔥</span> על האש</a>
+  </header>
+
+  <main>
+    <!-- ============ Upload ============ -->
+    <section id="upload-view" class="view">
+      <div class="hero">
+        <h1>מעלים את הצ'אט של הקבוצה.<br><span class="hot">מקבלים ירידות על כולם.</span></h1>
+        <p class="lead">סיכום של מה באמת קרה בקבוצה, סטטיסטיקות מביכות, ופסקה אישית ולא מחמיאה על כל אחד מהחברים.</p>
+      </div>
+
+      <form id="roast-form" class="card form-card" novalidate>
+        <div class="tabs" role="tablist" aria-label="איך להעלות">
+          <button type="button" role="tab" class="tab" aria-selected="true" data-tab="file">קובץ ייצוא</button>
+          <button type="button" role="tab" class="tab" aria-selected="false" data-tab="paste">הדבקת טקסט</button>
+        </div>
+
+        <div id="pane-file" class="pane">
+          <label id="dropzone" class="dropzone" for="file-input">
+            <input id="file-input" name="file" type="file" accept=".txt,.zip,.json,text/plain,application/zip,application/json" hidden>
+            <span class="drop-icon" aria-hidden="true">📂</span>
+            <span class="drop-title">גררו לכאן את קובץ הצ'אט</span>
+            <span class="drop-sub">או לחצו לבחירה · ‎.txt‏ / ‎.zip‏ של WhatsApp, או ‎result.json‏ של Telegram</span>
+            <span id="file-name" class="file-name" hidden></span>
+          </label>
+        </div>
+
+        <div id="pane-paste" class="pane" hidden>
+          <label class="sr-only" for="paste-input">טקסט הצ'אט</label>
+          <textarea id="paste-input" name="text" rows="8" dir="auto"
+            placeholder="31/12/2025, 23:58 - דנה: מי מגיע מחר?&#10;31/12/2025, 23:59 - יוסי: אני, אם לא אירדם 😴"></textarea>
+        </div>
+
+        <fieldset class="options">
+          <legend class="opt-label">כמה לשרוף?</legend>
+          <div class="segmented" role="radiogroup">
+            <label><input type="radio" name="spice" value="mild"><span>🌶️ עדין</span></label>
+            <label><input type="radio" name="spice" value="medium" checked><span>🌶️🌶️ בינוני</span></label>
+            <label><input type="radio" name="spice" value="savage"><span>🌶️🌶️🌶️ בלי רחמים</span></label>
+          </div>
+        </fieldset>
+
+        <div class="options">
+          <label class="opt-label" for="language">שפת התוצאה</label>
+          <select id="language" name="language">
+            <option value="he" selected>עברית</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+
+        <p id="form-error" class="error" role="alert" hidden></p>
+
+        <button id="submit-btn" class="btn btn-primary" type="submit">תצלו אותם 🔥</button>
+        <p class="privacy">🔒 הצ'אט נשלח לניתוח של Claude (Anthropic) ולא נשמר אצלנו. כדאי לקבל את הסכמת חברי הקבוצה לפני שמעלים.</p>
+      </form>
+
+      <details class="card howto">
+        <summary>איך מייצאים צ'אט מ-WhatsApp?</summary>
+        <div class="howto-grid">
+          <div>
+            <h3>אנדרואיד</h3>
+            <ol>
+              <li>פותחים את הקבוצה ← ⋮ (שלוש נקודות)</li>
+              <li>עוד ← ייצוא צ'אט</li>
+              <li>בוחרים <strong>ללא מדיה</strong></li>
+              <li>שומרים את הקובץ ומעלים אותו לכאן</li>
+            </ol>
+          </div>
+          <div>
+            <h3>אייפון</h3>
+            <ol>
+              <li>פותחים את הקבוצה ← לוחצים על שם הקבוצה</li>
+              <li>גוללים למטה ← ייצוא צ'אט</li>
+              <li>בוחרים <strong>ללא מדיה</strong></li>
+              <li>שומרים בקבצים ומעלים את קובץ ה-ZIP כמו שהוא</li>
+            </ol>
+          </div>
+          <div>
+            <h3>Telegram</h3>
+            <ol>
+              <li>Telegram Desktop ← הקבוצה ← ⋮</li>
+              <li>Export chat history</li>
+              <li>פורמט: <strong>JSON</strong></li>
+              <li>מעלים את הקובץ ‎result.json‏</li>
+            </ol>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ Loading ============ -->
+    <section id="loading-view" class="view" hidden aria-live="polite">
+      <div class="card loading-card">
+        <div class="flame" aria-hidden="true">🔥</div>
+        <h2 id="loading-title">מדליקים את הגריל…</h2>
+        <p id="loading-line" class="muted"></p>
+        <div class="progress" aria-hidden="true"><div id="progress-bar" class="progress-bar"></div></div>
+      </div>
+      <div id="early-stats"></div>
+    </section>
+
+    <!-- ============ Results ============ -->
+    <section id="results-view" class="view" hidden></section>
+  </main>
+
+  <footer class="footer">
+    נבנה עם Claude · בשביל הצחוק, לא בשביל לפגוע 🙂
+  </footer>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
