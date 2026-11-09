@@ -25,7 +25,7 @@ def test_access_code_required(monkeypatch):
     monkeypatch.setattr(appmod, "stream_roast", _fake_roast)
     client = appmod.app.test_client()
 
-    assert client.get("/api/config").get_json() == {"access_code_required": True}
+    assert client.get("/api/config").get_json()["access_code_required"] is True
     bad = client.post("/api/roast", data={"text": SAMPLE, "access_code": "nope"})
     assert bad.status_code == 401
     good = client.post("/api/roast", data={"text": SAMPLE, "access_code": "secret"})
@@ -37,7 +37,7 @@ def test_no_access_code_is_open(monkeypatch):
     monkeypatch.setattr(appmod, "ACCESS_CODE", "")
     monkeypatch.setattr(appmod, "stream_roast", _fake_roast)
     client = appmod.app.test_client()
-    assert client.get("/api/config").get_json() == {"access_code_required": False}
+    assert client.get("/api/config").get_json()["access_code_required"] is False
     assert client.post("/api/roast", data={"text": SAMPLE}).status_code == 200
 
 

@@ -90,6 +90,9 @@ fetch("/api/config")
   .then((r) => r.json())
   .then((cfg) => {
     accessCodeRequired = !!cfg.access_code_required;
+    if (cfg.provider === "replicate") {
+      $("#privacy").textContent = "🔒 הצ'אט נשלח לניתוח של Claude דרך Replicate ולא נשמר אצלנו. כדאי לקבל את הסכמת חברי הקבוצה לפני שמעלים.";
+    }
     $("#access-row").hidden = !accessCodeRequired;
     if (accessCodeRequired) {
       try { $("#access-code").value = localStorage.getItem(CODE_KEY) || ""; } catch (_) { /* storage blocked */ }

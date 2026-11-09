@@ -1,7 +1,13 @@
 """Ask Claude for the group summary and the roasts.
 
-One streamed Messages API call with a JSON-schema output format. Streaming keeps
-long chats from hitting HTTP timeouts and lets the page show progress.
+Two ways to reach Claude, picked by LLM_PROVIDER:
+- "anthropic": one streamed Messages API call with a JSON-schema output format
+  (needs ANTHROPIC_API_KEY).
+- "replicate": Claude hosted on Replicate (needs REPLICATE_API_TOKEN). Replicate
+  takes a prompt and a system prompt and streams plain text, so the JSON shape
+  is asked for in the prompt and parsed leniently.
+Streaming keeps long chats from hitting HTTP timeouts and lets the page show
+progress.
 """
 
 from __future__ import annotations
@@ -15,6 +21,20 @@ import anthropic
 MODEL = os.environ.get("ROAST_MODEL", "claude-opus-5-5")
 EFFORT = os.environ.get("ROAST_EFFORT", "high")  # low | medium | high | xhigh | max
 MAX_TOKENS = 64000
+
+REPLICATE_MODEL = os.environ.get("REPLICATE_MODEL", "anthropic/claude-sonnet-4.6")
+REPLICATE_MAX_TOKENS = int(os.environ.get("REPLICATE_MAX_TOKENS", "16000"))
+
+
+def provider() -> str:
+    """'anthropic' or 'replicate'. Explicit LLM_PROVIDER wins; otherwise use
+    whichever credential is configured, preferring the Anthropic API."""
+    chosen = os.environ.get("LLM_PROVIDER", "").strip().lower()
+    if chosen in ("anthropic", "replicate"):
+        return chosen
+    if os.environ.get("REPLICATE_API_TOKEN") and not os.environ.get("ANTHROPIC_API_KEY"):
+        return "replicate"
+    return "anthropic"
 
 LANGUAGES = {
     "he": "Hebrew (natural, modern, slangy Israeli Hebrew - not translated-sounding)",
@@ -187,6 +207,16 @@ def stream_roast(
     language: str = "he", spice: str = "medium",
 ) -> Iterator[dict]:
     """Yield progress events, then a final {"type": "result", "roast": {...}}."""
+    if provider() == "replicate":
+        yield from _stream_replicate(stats, transcript, included, members, language, spice)
+    else:
+        yield from _stream_anthropic(stats, transcript, included, members, language, spice)
+
+
+def _stream_anthropic(
+    stats: dict, transcript: str, included: int, members: list[str],
+    language: str, spice: str,
+) -> Iterator[dict]:
     client = _client()
     prompt = build_user_prompt(stats, transcript, included, members, language, spice)
 
@@ -259,16 +289,133 @@ def _parse_result(message, members: list[str]) -> dict:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise RoastError("התקבלה תשובה לא תקינה מהמודל. נסו שוב.") from exc
+    return _finish(data, members, message.model)
 
-    # Snap names back to the exact spelling from the chat, so the page can
-    # match each roast to its stats.
+
+def _finish(data: dict, members: list[str], model: str) -> dict:
+    """Fill missing fields and snap names back to the exact spelling from the
+    chat, so the page can match each roast to its stats."""
+    if not isinstance(data, dict) or not isinstance(data.get("members"), list):
+        raise RoastError("התקבלה תשובה לא תקינה מהמודל. נסו שוב.")
+    for key in ("group_nickname", "one_liner", "summary", "closing_line"):
+        if not isinstance(data.get(key), str):
+            data[key] = ""
+    for key in ("topics", "memorable_moments", "awards"):
+        if not isinstance(data.get(key), list):
+            data[key] = []
     by_key = {_norm(n): n for n in members}
-    for m in data.get("members", []):
+    data["members"] = [m for m in data["members"] if isinstance(m, dict) and m.get("roast")]
+    for m in data["members"]:
         m["name"] = by_key.get(_norm(m.get("name", "")), m.get("name", ""))
-    for a in data.get("awards", []):
+        for key in ("nickname", "quote"):
+            m.setdefault(key, "")
+    data["awards"] = [a for a in data["awards"] if isinstance(a, dict) and a.get("title")]
+    for a in data["awards"]:
         a["winner"] = by_key.get(_norm(a.get("winner", "")), a.get("winner", ""))
-    data["model"] = message.model
+        a.setdefault("reason", "")
+    data["memorable_moments"] = [
+        m for m in data["memorable_moments"] if isinstance(m, dict) and m.get("title")
+    ]
+    data["model"] = model
     return data
+
+
+# --------------------------------------------------------------------------- #
+# Replicate
+# --------------------------------------------------------------------------- #
+
+JSON_FORMAT = """Reply with only one JSON object and no other text (no Markdown fence), in exactly this shape:
+{
+  "group_nickname": "...",
+  "one_liner": "...",
+  "summary": "paragraph one\\n\\nparagraph two",
+  "topics": ["...", "..."],
+  "memorable_moments": [{"title": "...", "description": "..."}],
+  "members": [{"name": "...", "nickname": "...", "roast": "...", "quote": "..."}],
+  "awards": [{"title": "...", "winner": "...", "reason": "..."}],
+  "closing_line": "..."
+}
+Escape double quotes inside strings as \\". Give 2-4 memorable_moments and \
+3-6 awards.
+"""
+
+
+def _stream_replicate(
+    stats: dict, transcript: str, included: int, members: list[str],
+    language: str, spice: str,
+) -> Iterator[dict]:
+    import httpx
+    import replicate
+    from replicate.exceptions import ModelError, ReplicateError
+
+    if not os.environ.get("REPLICATE_API_TOKEN"):
+        raise RoastError("השרת לא מוגדר עם טוקן של Replicate (REPLICATE_API_TOKEN).")
+
+    client = replicate.Client()
+    prompt = build_user_prompt(stats, transcript, included, members, language, spice)
+    model_input = {
+        "prompt": prompt + "\n" + JSON_FORMAT,
+        "system_prompt": SYSTEM_PROMPT,
+        "max_tokens": REPLICATE_MAX_TOKENS,
+    }
+
+    yield {"type": "progress", "phase": "thinking"}
+    text = ""
+    try:
+        try:
+            events = client.stream(REPLICATE_MODEL, input=model_input)
+        except ReplicateError as exc:
+            # Not every model version takes max_tokens; retry once without it.
+            if exc.status == 422 and "max_tokens" in (exc.detail or ""):
+                model_input.pop("max_tokens")
+                events = client.stream(REPLICATE_MODEL, input=model_input)
+            else:
+                raise
+        last_reported = 0
+        for event in events:
+            chunk = str(event)
+            if not chunk:
+                continue
+            if not text:
+                yield {"type": "progress", "phase": "writing", "chars": 0}
+            text += chunk
+            if len(text) - last_reported >= 300:
+                last_reported = len(text)
+                yield {"type": "progress", "phase": "writing", "chars": len(text)}
+    except ReplicateError as exc:
+        raise RoastError(_replicate_message(exc)) from exc
+    except (ModelError, RuntimeError) as exc:
+        raise RoastError("המודל ב-Replicate נכשל באמצע. נסו שוב.") from exc
+    except httpx.HTTPError as exc:
+        raise RoastError("אין חיבור ל-Replicate. נסו שוב.") from exc
+
+    yield {"type": "result", "roast": _finish(_loads_lenient(text), members, REPLICATE_MODEL)}
+
+
+def _replicate_message(exc) -> str:
+    status = getattr(exc, "status", None)
+    if status == 401:
+        return "הטוקן של Replicate לא תקין."
+    if status == 402:
+        return "אין מספיק קרדיט בחשבון ה-Replicate."
+    if status == 404:
+        return f"המודל {REPLICATE_MODEL} לא נמצא ב-Replicate."
+    if status == 422:
+        return f"Replicate דחה את הבקשה: {exc.detail or ''}".strip()
+    if status == 429:
+        return "יותר מדי בקשות ל-Replicate כרגע. נסו שוב בעוד דקה."
+    return f"שגיאה ב-Replicate ({status}). נסו שוב."
+
+
+def _loads_lenient(text: str) -> dict:
+    """Parse the model's JSON even if it wrapped it in a fence or a sentence."""
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        raise RoastError("התשובה נחתכה או הגיעה בפורמט שבור. נסו שוב.")
+    try:
+        return json.loads(text[start:end + 1])
+    except json.JSONDecodeError as exc:
+        raise RoastError("התשובה נחתכה או הגיעה בפורמט שבור. נסו שוב.") from exc
 
 
 def _norm(name: str) -> str:

@@ -20,7 +20,7 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 
 from chat_parser import ChatParseError, build_transcript, compute_stats, load_upload, parse_chat
-from roaster import RoastError, stream_roast
+from roaster import RoastError, provider, stream_roast
 
 STATIC_DIR = Path(__file__).parent / "static"
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "50"))
@@ -58,7 +58,7 @@ def health():
 
 @app.get("/api/config")
 def config():
-    return jsonify(access_code_required=bool(ACCESS_CODE))
+    return jsonify(access_code_required=bool(ACCESS_CODE), provider=provider())
 
 
 @app.errorhandler(413)

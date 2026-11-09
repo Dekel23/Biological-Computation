@@ -7,7 +7,13 @@
 - **טקס פרסים**: פרסים מצחיקים ש-Claude ממציא, ולצידם פרסים "לפי המספרים" (ינשוף הלילה, הפפראצי, המתחרט הסדרתי…)
 - **סטטיסטיקות**: מי מדבר הכי הרבה, באיזו שעה הקבוצה ערה, יום השיא ועוד
 
-הסיכום והירידות נכתבים על ידי Claude (`claude-opus-5-5`). הסטטיסטיקות מחושבות מקומית בשרת.
+הסיכום והירידות נכתבים על ידי Claude. הסטטיסטיקות מחושבות מקומית בשרת.
+
+השרת יכול להגיע ל-Claude בשתי דרכים (`LLM_PROVIDER`):
+- **Replicate** (`replicate`): עם טוקן של Replicate (`REPLICATE_API_TOKEN`). ברירת המחדל היא `anthropic/claude-sonnet-4.6`, והחיוב דרך Replicate.
+- **Anthropic API** (`anthropic`): עם מפתח של Anthropic (`ANTHROPIC_API_KEY`). ברירת המחדל היא `claude-opus-5-5`, עם פלט JSON מובנה וגיבוי אוטומטי.
+
+אם `LLM_PROVIDER` לא מוגדר, השרת משתמש ב-Replicate כשיש רק טוקן של Replicate, ובכל מקרה אחר ב-Anthropic.
 
 ## גרסה בתוך Claude: בלי מפתח API ובלי שרת
 
@@ -26,7 +32,8 @@
 cd group-roast
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...      # מפתח מ-https://console.anthropic.com
+export REPLICATE_API_TOKEN=r8_...        # טוקן מ-replicate.com/account/api-tokens
+# או: export ANTHROPIC_API_KEY=sk-ant-...  (מפתח מ-console.anthropic.com)
 python app.py                            # http://localhost:8000
 ```
 
@@ -46,9 +53,13 @@ python app.py                            # http://localhost:8000
 
 | משתנה | ברירת מחדל | מה זה |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | מפתח ה-API (חובה) |
-| `ROAST_MODEL` | `claude-opus-5-5` | המודל שכותב את הירידות |
-| `ROAST_EFFORT` | `high` | `low` / `medium` / `high` / `xhigh` / `max`. נמוך יותר: מהיר וזול יותר |
+| `LLM_PROVIDER` | אוטומטי | `replicate` או `anthropic` |
+| `REPLICATE_API_TOKEN` | — | הטוקן של Replicate (ל-`replicate`) |
+| `REPLICATE_MODEL` | `anthropic/claude-sonnet-4.6` | המודל ב-Replicate |
+| `REPLICATE_MAX_TOKENS` | `16000` | אורך תשובה מקסימלי ב-Replicate |
+| `ANTHROPIC_API_KEY` | — | המפתח של Anthropic (ל-`anthropic`) |
+| `ROAST_MODEL` | `claude-opus-5-5` | המודל ב-Anthropic API |
+| `ROAST_EFFORT` | `high` | `low` / `medium` / `high` / `xhigh` / `max` (רק ב-Anthropic API). נמוך יותר: מהיר וזול יותר |
 | `MAX_TRANSCRIPT_CHARS` | `300000` | כמה תווים מהצ'אט (מההודעות האחרונות) נשלחים ל-Claude. הסטטיסטיקות תמיד מחושבות על כל הצ'אט, והאתר מציין כשנקרא רק חלק |
 | `MAX_ROASTED_MEMBERS` | `20` | לכמה מהחברים הפעילים ביותר נכתבת ירידה אישית |
 | `MAX_UPLOAD_MB` | `50` | גודל קובץ מקסימלי |
@@ -57,7 +68,7 @@ python app.py                            # http://localhost:8000
 | `HEARTBEAT_SECONDS` | `10` | כל כמה שניות לשלוח "אני עדיין כאן" כשאין התקדמות |
 | `PORT` | `8000` | פורט השרת |
 
-**עלות:** כל צלייה היא קריאה אחת ל-API. צ'אט גדול שממלא את כל 300 אלף התווים יעלה בערך חצי דולר. זו הערכה גסה: ביחס של תווים לטוקנים בעברית לא מדדנו. צ'אטים קטנים עולים הרבה פחות. כדי לחסוך, אפשר להוריד את `MAX_TRANSCRIPT_CHARS` או את `ROAST_EFFORT`.
+**עלות:** כל צלייה היא קריאה אחת למודל. צ'אט גדול שממלא את כל 300 אלף התווים יעלה בהערכה גסה כחצי דולר, בשתי הדרכים. את היחס בין תווים לטוקנים בעברית לא מדדנו. צ'אטים קטנים עולים הרבה פחות. כדי לחסוך, אפשר להוריד את `MAX_TRANSCRIPT_CHARS`.
 
 ## העלאה לאוויר ב-Render (אחסון חינמי)
 
@@ -66,12 +77,12 @@ python app.py                            # http://localhost:8000
 1. ב-render.com נכנסים עם GitHub ובוחרים **New → Blueprint**.
 2. בוחרים את הריפו ואת ה-branch שבו נמצא האתר.
 3. Render מבקש שני ערכים:
-   - `ANTHROPIC_API_KEY`: המפתח מ-console.anthropic.com.
+   - `REPLICATE_API_TOKEN`: הטוקן מ-replicate.com/account/api-tokens. כדי להשתמש במפתח של Anthropic במקום, משנים בהגדרות השירות את `LLM_PROVIDER` ל-`anthropic` ומוסיפים `ANTHROPIC_API_KEY`.
    - `ACCESS_CODE`: קוד שתבחרו. רק מי שיודע אותו יכול להריץ צלייה על המפתח שלכם.
 4. לוחצים **Apply**. אחרי כמה דקות מקבלים כתובת `https://al-haesh-….onrender.com`.
 
 **הערות:**
-- **הגנה על הכסף:** בנוסף לקוד הגישה ולמכסה היומית (`DAILY_ROAST_LIMIT`), כדאי להגדיר תקרת הוצאה חודשית ב-console.anthropic.com.
+- **הגנה על הכסף:** בנוסף לקוד הגישה ולמכסה היומית (`DAILY_ROAST_LIMIT`), כדאי לבדוק בהגדרות החיוב של ספק ה-AI אם אפשר להגדיר שם תקרת הוצאה.
 - **התעוררות איטית:** בתוכנית החינמית השירות נרדם כשאין שימוש, והבקשה הראשונה אחרי הפסקה לוקחת קצת יותר זמן.
 - **חיבור פתוח:** השרת שולח הודעת "אני עדיין כאן" כל 10 שניות (`HEARTBEAT_SECONDS`), כדי שהחיבור לא ינותק בזמן ש-Claude חושב.
 
@@ -112,4 +123,4 @@ pytest -q tests
 
 ### English (short)
 
-Upload a WhatsApp/Telegram group-chat export and get a summary of the group plus a personal roast for each member, written by Claude. Stats (who talks most, night owls, deleted messages, peak hours) are computed locally. Run with `pip install -r requirements.txt && ANTHROPIC_API_KEY=... python app.py`, then open http://localhost:8000. The output language can be Hebrew or English.
+Upload a WhatsApp/Telegram group-chat export and get a summary of the group plus a personal roast for each member, written by Claude. Stats (who talks most, night owls, deleted messages, peak hours) are computed locally. Run with `pip install -r requirements.txt && REPLICATE_API_TOKEN=... python app.py` (Claude on Replicate) or `ANTHROPIC_API_KEY=... python app.py` (Anthropic API), then open http://localhost:8000. The output language can be Hebrew or English.

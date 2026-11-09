@@ -1,6 +1,10 @@
 # Render Blueprint for the "על האש" group-roast site (group-roast/).
 # Render dashboard -> New -> Blueprint -> pick this repo. It asks for the
-# two secret values below on the first sync.
+# secret values below (sync: false) on the first sync.
+#
+# Claude is reached through Replicate (REPLICATE_API_TOKEN). To use an
+# Anthropic API key instead, set LLM_PROVIDER to "anthropic" and add
+# ANTHROPIC_API_KEY in the service's Environment settings.
 services:
   - type: web
     name: al-haesh
@@ -13,7 +17,9 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.13.5"
-      - key: ANTHROPIC_API_KEY
+      - key: LLM_PROVIDER
+        value: replicate
+      - key: REPLICATE_API_TOKEN
         sync: false
       - key: ACCESS_CODE
         sync: false
