@@ -26,7 +26,21 @@
 
 כדי לעדכן את ה-Artifact, מפרסמים את הקובץ מחדש מ-Claude Code.
 
-## הרצה מקומית (גרסת השרת)
+## הרצה על המחשב שלכם, בלחיצה כפולה
+
+1. מתקינים Python מ-python.org/downloads. ב-Windows מסמנים בהתקנה **Add python.exe to PATH**.
+2. מורידים את הקוד כ-ZIP ומחלצים אותו:
+   https://github.com/Dekel23/Biological-Computation/archive/refs/heads/ccr-c4b4a72f-yutvlc.zip
+3. בתיקייה `group-roast` לוחצים לחיצה כפולה על:
+   - **Windows:** `start-windows.bat`. אם מופיע "Windows protected your PC", לוחצים More info ← Run anyway.
+   - **Mac:** `start-mac.command`. אם מופיעה אזהרה, לוחצים קליק ימני ← Open.
+4. בפעם הראשונה הקובץ מתקין את מה שצריך (בערך דקה) ומבקש את הטוקן של Replicate. הטוקן נשמר רק במחשב שלכם, בקובץ `.env`.
+5. האתר נפתח בדפדפן. החלון מציג גם כתובת לפתיחה מהטלפון כשהוא על אותו Wi-Fi.
+
+כדי לכבות סוגרים את החלון. בפעם הבאה מספיקה לחיצה כפולה, בלי התקנה ובלי טוקן.
+כדי להחליף טוקן, מוחקים את הקובץ `.env` ומריצים שוב.
+
+## הרצה מקומית ידנית (גרסת השרת)
 
 ```bash
 cd group-roast

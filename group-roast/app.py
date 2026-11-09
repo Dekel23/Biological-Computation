@@ -19,8 +19,12 @@ from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 
-from chat_parser import ChatParseError, build_transcript, compute_stats, load_upload, parse_chat
-from roaster import RoastError, provider, stream_roast
+from local_env import load_env_file
+
+load_env_file()  # before importing roaster, which reads its settings at import
+
+from chat_parser import ChatParseError, build_transcript, compute_stats, load_upload, parse_chat  # noqa: E402
+from roaster import RoastError, provider, stream_roast  # noqa: E402
 
 STATIC_DIR = Path(__file__).parent / "static"
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "50"))
@@ -181,5 +185,33 @@ def _line(obj: dict) -> str:
     return json.dumps(obj, ensure_ascii=False) + "\n"
 
 
+def _lan_address() -> str | None:
+    """This computer's address on the local network (no packets are sent)."""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except OSError:
+        return None
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "8000")), debug=False, threaded=True)
+    port = int(os.environ.get("PORT", "8000"))
+    local_url = f"http://localhost:{port}"
+    print(f"\n  The site is running:  {local_url}")
+    lan = _lan_address()
+    if lan and not lan.startswith("127."):
+        print(f"  From a phone on the same Wi-Fi:  http://{lan}:{port}")
+    print("  To stop it, close this window.\n")
+    if os.environ.get("OPEN_BROWSER") == "1":
+        import webbrowser
+        threading.Timer(1.5, webbrowser.open, args=(local_url,)).start()
+    # Keep the window readable: only the lines above, plus real errors.
+    import logging
+
+    import flask.cli
+    os.environ.setdefault("FLASK_SKIP_DOTENV", "1")  # .env is read by local_env
+    flask.cli.show_server_banner = lambda *args, **kwargs: None
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
