@@ -1,0 +1,21 @@
+# Render Blueprint for the "על האש" group-roast site (group-roast/).
+# Render dashboard -> New -> Blueprint -> pick this repo. It asks for the
+# two secret values below on the first sync.
+services:
+  - type: web
+    name: al-haesh
+    runtime: python
+    plan: free
+    rootDir: group-roast
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 600
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.5"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ACCESS_CODE
+        sync: false
+      - key: DAILY_ROAST_LIMIT
+        value: "30"

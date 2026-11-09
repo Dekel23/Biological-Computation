@@ -82,6 +82,25 @@ dropzone.addEventListener("drop", (e) => {
   if (f) setFile(f);
 });
 
+/* Access code: shown only when the server asks for one; remembered on this device. */
+const CODE_KEY = "al-haesh-access-code";
+let accessCodeRequired = false;
+
+fetch("/api/config")
+  .then((r) => r.json())
+  .then((cfg) => {
+    accessCodeRequired = !!cfg.access_code_required;
+    $("#access-row").hidden = !accessCodeRequired;
+    if (accessCodeRequired) {
+      try { $("#access-code").value = localStorage.getItem(CODE_KEY) || ""; } catch (_) { /* storage blocked */ }
+    }
+  })
+  .catch(() => { /* older server without /api/config: no code */ });
+
+function rememberCode(code) {
+  try { localStorage.setItem(CODE_KEY, code); } catch (_) { /* storage blocked */ }
+}
+
 function showFormError(msg) {
   const box = $("#form-error");
   box.textContent = msg;
@@ -96,6 +115,12 @@ $("#roast-form").addEventListener("submit", async (e) => {
   const form = new FormData();
   form.append("spice", document.querySelector('input[name="spice"]:checked').value);
   form.append("language", $("#language").value);
+
+  if (accessCodeRequired) {
+    const code = $("#access-code").value.trim();
+    if (!code) { $("#access-code").focus(); return showFormError("הכניסו את קוד הגישה."); }
+    form.append("access_code", code);
+  }
 
   if (activeTab === "file") {
     if (!chosenFile) return showFormError("בחרו קובץ צ'אט קודם.");
@@ -157,8 +182,10 @@ async function runRoast(form) {
     if (!res.ok) {
       let msg = "משהו השתבש. נסו שוב.";
       try { msg = (await res.json()).error || msg; } catch (_) { /* not JSON */ }
+      if (res.status === 401) rememberCode("");
       throw new Error(msg);
     }
+    if (accessCodeRequired) rememberCode(form.get("access_code"));
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
