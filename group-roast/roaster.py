@@ -4,7 +4,7 @@ Two ways to reach Claude, picked by LLM_PROVIDER:
 - "anthropic": one streamed Messages API call with a JSON-schema output format
   (needs ANTHROPIC_API_KEY).
 - "replicate": Claude hosted on Replicate (needs REPLICATE_API_TOKEN). Replicate
-  takes a prompt and a system prompt and streams plain text, so the JSON shape
+  takes a prompt and a system prompt and returns plain text, so the JSON shape
   is asked for in the prompt and parsed leniently.
 Streaming keeps long chats from hitting HTTP timeouts and lets the page show
 progress.
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from collections.abc import Iterator
 
 import anthropic
@@ -24,6 +25,11 @@ MAX_TOKENS = 64000
 
 REPLICATE_MODEL = os.environ.get("REPLICATE_MODEL", "anthropic/claude-sonnet-4.6")
 REPLICATE_MAX_TOKENS = int(os.environ.get("REPLICATE_MAX_TOKENS", "16000"))
+# Per-request read timeout (the client's own default is 30 s), how often to
+# check on the roast, and when to give up on it.
+REPLICATE_READ_TIMEOUT = float(os.environ.get("REPLICATE_READ_TIMEOUT", "60"))
+REPLICATE_POLL_SECONDS = float(os.environ.get("REPLICATE_POLL_SECONDS", "1.5"))
+REPLICATE_MAX_SECONDS = float(os.environ.get("REPLICATE_MAX_SECONDS", "600"))
 
 
 def provider() -> str:
@@ -172,7 +178,9 @@ def build_user_prompt(
     stats: dict, transcript: str, included: int, members: list[str],
     language: str, spice: str,
 ) -> str:
-    stats_for_model = {k: v for k, v in stats.items() if k not in ("hours", "weekdays")}
+    # The page shows its own stat-based awards; leave them out so Claude
+    # invents different ones instead of repeating them.
+    stats_for_model = {k: v for k, v in stats.items() if k not in ("hours", "weekdays", "awards")}
     coverage = (
         f"The transcript below holds the most recent {included} of "
         f"{stats['total_messages']} messages. The statistics cover the whole chat."
@@ -346,12 +354,12 @@ def _stream_replicate(
 ) -> Iterator[dict]:
     import httpx
     import replicate
-    from replicate.exceptions import ModelError, ReplicateError
+    from replicate.exceptions import ReplicateError
 
     if not os.environ.get("REPLICATE_API_TOKEN"):
         raise RoastError("השרת לא מוגדר עם טוקן של Replicate (REPLICATE_API_TOKEN).")
 
-    client = replicate.Client()
+    client = replicate.Client(**_replicate_client_options(httpx))
     prompt = build_user_prompt(stats, transcript, included, members, language, spice)
     model_input = {
         "prompt": prompt + "\n" + JSON_FORMAT,
@@ -360,36 +368,74 @@ def _stream_replicate(
     }
 
     yield {"type": "progress", "phase": "thinking"}
+    # Poll the prediction on api.replicate.com rather than following its
+    # stream URL: the stream lives on another, changing host that office
+    # networks and proxies often block. Partial output still shows progress.
+    prediction = None
     text = ""
     try:
         try:
-            events = client.stream(REPLICATE_MODEL, input=model_input)
+            prediction = client.predictions.create(model=REPLICATE_MODEL, input=model_input)
         except ReplicateError as exc:
             # Not every model version takes max_tokens; retry once without it.
             if exc.status == 422 and "max_tokens" in (exc.detail or ""):
                 model_input.pop("max_tokens")
-                events = client.stream(REPLICATE_MODEL, input=model_input)
+                prediction = client.predictions.create(model=REPLICATE_MODEL, input=model_input)
             else:
                 raise
-        last_reported = 0
-        for event in events:
-            chunk = str(event)
-            if not chunk:
-                continue
-            if not text:
+        deadline = time.monotonic() + REPLICATE_MAX_SECONDS
+        last_reported = -1
+        while True:
+            text = _output_text(prediction.output)
+            if text and last_reported < 0:
+                last_reported = 0
                 yield {"type": "progress", "phase": "writing", "chars": 0}
-            text += chunk
-            if len(text) - last_reported >= 300:
+            if last_reported >= 0 and len(text) - last_reported >= 300:
                 last_reported = len(text)
                 yield {"type": "progress", "phase": "writing", "chars": len(text)}
+            if prediction.status in ("succeeded", "failed", "canceled"):
+                break
+            if time.monotonic() > deadline:
+                raise RoastError("Claude ב-Replicate לקח יותר מדי זמן. נסו צ'אט קצר יותר.")
+            time.sleep(REPLICATE_POLL_SECONDS)
+            prediction.reload()
     except ReplicateError as exc:
         raise RoastError(_replicate_message(exc)) from exc
-    except (ModelError, RuntimeError) as exc:
-        raise RoastError("המודל ב-Replicate נכשל באמצע. נסו שוב.") from exc
     except httpx.HTTPError as exc:
         raise RoastError("אין חיבור ל-Replicate. נסו שוב.") from exc
+    finally:
+        # The page went away (or we gave up): stop paying for the rest.
+        if prediction is not None and prediction.status not in ("succeeded", "failed", "canceled"):
+            try:
+                prediction.cancel()
+            except Exception:  # best effort
+                pass
 
+    if prediction.status != "succeeded":
+        raise RoastError(f"המודל ב-Replicate נכשל: {prediction.error or prediction.status}. נסו שוב.")
+    text = _output_text(prediction.output)
     yield {"type": "result", "roast": _finish(_loads_lenient(text), members, REPLICATE_MODEL)}
+
+
+def _output_text(output) -> str:
+    """Language models on Replicate return a list of text pieces (or a string)."""
+    if output is None:
+        return ""
+    if isinstance(output, str):
+        return output
+    return "".join(str(part) for part in output)
+
+
+def _replicate_client_options(httpx) -> dict:
+    options = {
+        "timeout": httpx.Timeout(10.0, read=REPLICATE_READ_TIMEOUT, write=60.0, connect=10.0, pool=10.0),
+    }
+    # The replicate client brings its own transport, which skips the standard
+    # proxy variables; honor them so it also works behind a proxy.
+    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+    if proxy:
+        options["transport"] = httpx.HTTPTransport(proxy=proxy)
+    return options
 
 
 def _replicate_message(exc) -> str:

@@ -14,6 +14,7 @@ from chat_parser import (  # noqa: E402
     ChatParseError,
     build_transcript,
     compute_stats,
+    drop_unverified_quotes,
     load_upload,
     parse_chat,
 )
@@ -110,3 +111,14 @@ def test_transcript_keeps_most_recent_within_budget():
     assert 0 < included < 50
     assert transcript.endswith("message 49")
     assert len(transcript) <= 300
+
+
+def test_drop_unverified_quotes():
+    chat = parse_chat((ROOT / "sample_chat.txt").read_text(encoding="utf-8"))
+    roast = {"members": [
+        {"name": "עומר", "quote": "לא שכחתי, לא קניתי. זה שונה"},     # his own words
+        {"name": "דניאל", "quote": "דניאל זה צילום מסך של הטבלה"},     # Maya said this
+        {"name": "נועה", "quote": "\u201cרק אני 🙃\u201d"},              # curly quotes around it
+    ]}
+    drop_unverified_quotes(roast, chat)
+    assert [m["quote"] for m in roast["members"]] == ["לא שכחתי, לא קניתי. זה שונה", "", "\u201cרק אני 🙃\u201d"]

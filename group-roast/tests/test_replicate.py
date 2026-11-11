@@ -22,27 +22,52 @@ ANSWER = {
 }
 
 
-class FakeEvent:
-    def __init__(self, data):
-        self.data = data
+class FakePrediction:
+    """Mimics replicate's Prediction: output grows on each reload()."""
 
-    def __str__(self):
-        return self.data
+    def __init__(self, text, fail=False):
+        self.pieces = [text[i:i + 40] for i in range(0, len(text), 40)]
+        self.shown = 0
+        self.status = "starting"
+        self.output = None
+        self.error = "boom" if fail else None
+        self.fail = fail
+        self.canceled = False
+
+    def reload(self):
+        self.shown = min(len(self.pieces), self.shown + 1)
+        self.output = self.pieces[: self.shown]
+        if self.shown == len(self.pieces):
+            self.status = "failed" if self.fail else "succeeded"
+        else:
+            self.status = "processing"
+
+    def cancel(self):
+        self.canceled = True
+        self.status = "canceled"
+
+
+class FakePredictions:
+    def __init__(self, owner):
+        self.owner = owner
+
+    def create(self, model, input):
+        FakeClient.calls.append((model, dict(input)))
+        if FakeClient.reject_max_tokens and "max_tokens" in input:
+            raise ReplicateError(status=422, detail="input: max_tokens is not allowed")
+        text = "Here you go:\n```json\n" + json.dumps(ANSWER, ensure_ascii=False) + "\n```"
+        FakeClient.last = FakePrediction(text, fail=FakeClient.fail)
+        return FakeClient.last
 
 
 class FakeClient:
     calls = []
     reject_max_tokens = False
+    fail = False
+    last = None
 
     def __init__(self, *a, **kw):
-        pass
-
-    def stream(self, ref, input):
-        FakeClient.calls.append((ref, dict(input)))
-        if FakeClient.reject_max_tokens and "max_tokens" in input:
-            raise ReplicateError(status=422, detail="input: max_tokens is not allowed")
-        text = "Here you go:\n```json\n" + json.dumps(ANSWER, ensure_ascii=False) + "\n```"
-        return iter([FakeEvent(text[i:i + 40]) for i in range(0, len(text), 40)])
+        self.predictions = FakePredictions(self)
 
 
 @pytest.fixture
@@ -58,8 +83,10 @@ def replicate_env(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "replicate")
     monkeypatch.setenv("REPLICATE_API_TOKEN", "r8_test")
     monkeypatch.setattr(replicate, "Client", FakeClient)
+    monkeypatch.setattr(roaster, "REPLICATE_POLL_SECONDS", 0)
     FakeClient.calls = []
     FakeClient.reject_max_tokens = False
+    FakeClient.fail = False
 
 
 def test_provider_selection(monkeypatch):
@@ -94,14 +121,31 @@ def test_retries_without_max_tokens(chat_args):
 
 
 def test_bad_token_message(chat_args, monkeypatch):
-    def boom(self, ref, input):
+    def boom(self, model, input):
         raise ReplicateError(status=401, detail="Unauthenticated")
-    monkeypatch.setattr(FakeClient, "stream", boom)
+    monkeypatch.setattr(FakePredictions, "create", boom)
     with pytest.raises(roaster.RoastError, match="Replicate"):
         list(roaster.stream_roast(*chat_args))
 
 
+def test_model_failure(chat_args):
+    FakeClient.fail = True
+    with pytest.raises(roaster.RoastError, match="boom"):
+        list(roaster.stream_roast(*chat_args))
+
+
+def test_cancels_when_page_goes_away(chat_args):
+    gen = roaster.stream_roast(*chat_args)
+    assert next(gen)["phase"] == "thinking"
+    next(gen)  # first progress after one poll
+    gen.close()  # what the server does when the browser disconnects
+    assert FakeClient.last.canceled
+
+
 def test_broken_json(chat_args, monkeypatch):
-    monkeypatch.setattr(FakeClient, "stream", lambda self, ref, input: iter([FakeEvent('{"members": [')]))
+    def broken(self, model, input):
+        FakeClient.last = FakePrediction('{"members": [')
+        return FakeClient.last
+    monkeypatch.setattr(FakePredictions, "create", broken)
     with pytest.raises(roaster.RoastError):
         list(roaster.stream_roast(*chat_args))

@@ -371,6 +371,22 @@ def _compute_awards(members: list[dict]) -> list[dict]:
     return awards
 
 
+def drop_unverified_quotes(roast: dict, chat: ParsedChat) -> None:
+    """Blank any quote that isn't really in that member's own messages."""
+    def norm(s: str) -> str:
+        s = re.sub("[\"\u201c\u201d\u201e\u00ab\u00bb]", "", _INVISIBLE.sub("", s))
+        return " ".join(s.split()).casefold()
+
+    said: dict[str, list[str]] = defaultdict(list)
+    for m in chat.messages:
+        if not m.is_media and not m.is_deleted:
+            said[m.author].append(norm(m.text))
+    for member in roast.get("members", []):
+        quote = norm(member.get("quote") or "")
+        if quote and not any(quote in text for text in said.get(member.get("name"), [])):
+            member["quote"] = ""
+
+
 # --------------------------------------------------------------------------- #
 # Transcript for the model
 # --------------------------------------------------------------------------- #

@@ -23,7 +23,14 @@ from local_env import load_env_file
 
 load_env_file()  # before importing roaster, which reads its settings at import
 
-from chat_parser import ChatParseError, build_transcript, compute_stats, load_upload, parse_chat  # noqa: E402
+from chat_parser import (  # noqa: E402
+    ChatParseError,
+    build_transcript,
+    compute_stats,
+    drop_unverified_quotes,
+    load_upload,
+    parse_chat,
+)
 from roaster import RoastError, provider, stream_roast  # noqa: E402
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -113,6 +120,8 @@ def roast():
                 HEARTBEAT_SECONDS,
             )
             for event in roast_events:
+                if event.get("type") == "result":
+                    drop_unverified_quotes(event["roast"], chat)
                 yield _line(event)
         except RoastError as exc:
             yield _line({"type": "error", "error": str(exc)})

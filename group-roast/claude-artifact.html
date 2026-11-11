@@ -583,6 +583,7 @@ const SPICE = {
 function buildPromptHead(stats, roasted, language, spice) {
   const statsForModel = { ...stats, members: stats.members.slice(0, 40) };
   delete statsForModel.hours;
+  delete statsForModel.awards; // the page shows these itself; Claude invents its own
   return `You are the head writer of a comedy roast. Below is an exported group chat and statistics computed from it by code. Write (1) a summary of what the group is about and what happened in it, and (2) a personal roast for each listed member.
 
 What makes a good roast here:
