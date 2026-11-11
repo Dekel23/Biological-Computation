@@ -1,7 +1,7 @@
 {
   "name": "Riseup Clone – Personal Finance",
   "short_name": "Bottom Line",
-  "description": "Know what's free to spend this month. Smart categories, budgets, goals and a WhatsApp money buddy.",
+  "description": "Know what's free to spend this month. Payments logged from your card SMS, history import, budgets, goals and a money bot.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -34,5 +34,13 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text"
+    }
+  }
 }

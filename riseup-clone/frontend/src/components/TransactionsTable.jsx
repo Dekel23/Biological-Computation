@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { api, notifyDataChanged } from '../api'
+import { api, IS_LOCAL, notifyDataChanged } from '../api'
 import { useApi } from '../hooks/useApi'
 import { useCategories } from '../hooks/useCategories'
 import { categoryName, currentMonth, formatDate, formatMoney, toISODate } from '../utils/format'
 import { CategoryIcon, ErrorState, LoadingBlock, MonthSwitcher, Sheet, Spinner, useToast } from './ui'
+import ImportSheet from './ImportSheet'
 
-const SOURCES = ['bank', 'cash', 'manual']
+const SOURCES = IS_LOCAL ? ['sms', 'import', 'cash', 'manual', 'bank'] : ['bank', 'cash', 'manual']
 
 function useDebounced(value, delay = 300) {
   const [debounced, setDebounced] = useState(value)
@@ -30,6 +31,7 @@ export default function TransactionsTable() {
   const { list: categories, byKey } = useCategories()
   const [editing, setEditing] = useState(null)
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   const { data, error, loading, reload } = useApi(
     () => api.transactions({ month, category, q, source, limit: 500 }),
@@ -62,7 +64,14 @@ export default function TransactionsTable() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">{t('tx.title')}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold">{t('tx.title')}</h1>
+          {IS_LOCAL && (
+            <button className="chip chip-active py-1" onClick={() => setImporting(true)}>
+              ⬆ {t('importer.button')}
+            </button>
+          )}
+        </div>
         <MonthSwitcher month={month} onChange={setMonth} maxMonth={currentMonth()} />
       </div>
 
@@ -147,6 +156,7 @@ export default function TransactionsTable() {
         }}
       />
       <AddTransactionSheet open={adding} onClose={() => setAdding(false)} categories={categories} />
+      {IS_LOCAL && <ImportSheet open={importing} onClose={() => setImporting(false)} />}
     </div>
   )
 }
@@ -163,14 +173,14 @@ function TransactionRow({ tx, lang, money, onClick }) {
           <p className="truncate text-sm font-medium"><bdi>{tx.merchant}</bdi></p>
           <p className="truncate text-xs text-muted md:hidden">
             {categoryName(tx.category, lang)}
-            {tx.source !== 'bank' && ` · ${t(`tx.sources.${tx.source}`)}`}
+            {tx.source !== 'bank' && ` · ${tx.account_label || t(`tx.sources.${tx.source}`)}`}
           </p>
         </div>
         <div className="hidden text-xs md:block">
           <p className="font-medium text-ink-2">{categoryName(tx.category, lang)}</p>
           <p className={needsCategory ? 'text-bad' : 'text-muted'}>
             {t(`tx.categorySource.${tx.category_source}`)}
-            {tx.source !== 'bank' && ` · ${t(`tx.sources.${tx.source}`)}`}
+            {tx.source !== 'bank' && ` · ${tx.account_label || t(`tx.sources.${tx.source}`)}`}
           </p>
         </div>
         <div className="text-end">

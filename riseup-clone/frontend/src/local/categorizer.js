@@ -98,6 +98,10 @@ export const KEYWORDS = {
   ],
   cash: ['atm', 'cash withdrawal', 'כספומט', 'משיכת מזומן', 'משיכה מכספומט', 'מזומן'],
   transfers: ['bit', 'ביט', 'paybox', 'פייבוקס', 'pepper pay', 'transfer to', 'העברה ל'],
+  card_bill: [
+    'ישראכרט', 'isracard', 'מקס איט', 'max it', 'לאומי קארד', 'leumi card', 'כאל', 'visa cal', 'אמריקן אקספרס',
+    'american express', 'דיינרס', 'diners', 'חיוב כרטיס', 'כרטיסי אשראי', 'כרטיס אשראי',
+  ],
 }
 
 export const MCC_MAP = {

@@ -26,12 +26,25 @@ const DEFAULT_CATEGORIES = [
   ['transfers', 'Transfers', 'העברות', '↔️', '#64748b', false, false],
   ['cash', 'Cash withdrawal', 'משיכת מזומן', '🏧', '#78716c', false, false],
   ['other', 'Other', 'אחר', '📦', '#94a3b8', false, false],
+  // The bank's monthly payment to a card company: the card's own charges already count.
+  ['card_bill', 'Credit card bill', 'חיוב כרטיס אשראי', '💳', '#475569', false, false],
 ]
 
 export function defaultCategories() {
   return DEFAULT_CATEGORIES.map(([key, name_en, name_he, icon, color, is_fixed, is_income], i) => ({
     id: i + 1, key, name_en, name_he, icon, color, is_fixed, is_income, sort_order: i,
   }))
+}
+
+/** Add categories introduced after this state was created (ids are append-only). */
+export function ensureCategories(state) {
+  const have = new Set(state.categories.map((c) => c.key))
+  for (const cat of defaultCategories()) {
+    if (have.has(cat.key)) continue
+    const id = Math.max(0, ...state.categories.map((c) => c.id)) + 1
+    state.categories.push({ ...cat, id })
+  }
+  return state
 }
 
 export function makeNextId(state) {

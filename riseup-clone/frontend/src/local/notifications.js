@@ -1,5 +1,5 @@
 /** Proactive bot updates on the device – port of backend/services/notifications.py. */
-import { computeBottomLine } from './calculator'
+import { ACCOUNT_SOURCES, computeBottomLine } from './calculator'
 import { addDays, todayISO } from './dates'
 import { detectSubscriptions } from './insights'
 import { categoryName, money, monthName, t } from './messages'
@@ -24,7 +24,7 @@ function spendBetween(state, start, end) {
   for (const tx of state.transactions) {
     if (tx.amount >= 0 || tx.date < start || tx.date > end) continue
     const cat = cats[tx.category_id]
-    if (cat.is_income || (cat.key === 'cash' && tx.source === 'bank')) continue
+    if (cat.is_income || cat.key === 'card_bill' || (cat.key === 'cash' && ACCOUNT_SOURCES.has(tx.source))) continue
     total += -tx.amount
     byCat[tx.category_id] = (byCat[tx.category_id] || 0) - tx.amount
   }

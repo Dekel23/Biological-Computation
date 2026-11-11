@@ -9,7 +9,7 @@ const CADENCES = [
   ['quarterly', 84, 98],
   ['yearly', 350, 380],
 ]
-const EXCLUDED = new Set(['cash', 'transfers'])
+const EXCLUDED = new Set(['cash', 'transfers', 'card_bill'])
 
 const median = (xs) => {
   const s = [...xs].sort((a, b) => a - b)

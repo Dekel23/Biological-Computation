@@ -86,7 +86,9 @@ How phone mode differs from the server version:
 * The first launch shows a demo household with a mock bank. **Settings → Your data → Start fresh** (or the banner on Home) wipes it and starts empty; then add your expected income, fixed expenses and budgets, and log spending with **+** or the **Bot** tab.
 * Data never leaves the phone. Use **Download backup** now and then: deleting the app or clearing the browser's site data erases it. **Restore from backup** brings it back on any phone.
 * The bot lives in the **Bot** tab instead of WhatsApp. The weekly summary (Sundays 09:00), the daily update (20:30) and budget alerts are delivered there – scheduled ones the next time the app is opened after their time – with a red dot on the tab. **Settings → Phone notifications** can also show them as notifications (iPhone: only for the home-screen app).
-* `npm test` runs the on-device engine's tests (the same cases as the backend's).
+* **Automatic payments (phone mode).** Card companies and banks text on every payment, Google Pay included. On Android, a MacroDroid macro (trigger: SMS received → action: Open website `…/?sms=` + the SMS text) opens the app with each message, and it is parsed and logged on the device (`src/local/smsParser.js`). Settings → Automatic payments has the steps, the link to copy and a message tester. Long-press → Share → Bottom Line works without MacroDroid.
+* **History import (phone mode).** Activity → Import reads the Excel/CSV/HTML transaction exports from bank and card websites (`src/local/statementImport.js`, SheetJS loaded on demand), detects the table by its Hebrew/English headers and imports it. Re-importing a file adds nothing, a statement row and the SMS for the same charge count once, and the bank's monthly card-bill line is excluded from spending (category *Credit card bill*) so card charges aren't counted twice.
+* `npm test` runs the on-device engine's tests (the same cases as the backend's, plus SMS parsing and file import).
 
 ## Run it on a computer
 

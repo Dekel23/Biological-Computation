@@ -7,10 +7,12 @@ import { syncAccount } from './bankSync'
 import { handleInbound } from './bot'
 import { computeBottomLine, monthlyTrend } from './calculator'
 import { Categorizer } from './categorizer'
-import { monthBounds, round2, toISO, todayISO } from './dates'
+import { daysBetween, monthBounds, round2, toISO, todayISO } from './dates'
+import { hashString } from './hash'
 import { detectSubscriptions, goalsOverview } from './insights'
 import { buildBalanceMessage, buildDailyUpdate, buildWeeklySummary, checkBudgetAlerts, sendMessage } from './notifications'
-import { demoState, emptyState, makeNextId } from './seed'
+import { demoState, emptyState, ensureCategories, makeNextId } from './seed'
+import { parseSms, splitMessages } from './smsParser'
 import { createQueue, readState, requestPersistence, validateBackup } from './store'
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
@@ -27,7 +29,7 @@ function initialLanguage() {
 
 const queue = createQueue(async () => {
   const saved = await readState()
-  if (saved) return saved
+  if (saved) return ensureCategories(saved)
   requestPersistence()
   return demoState({ language: initialLanguage() })
 })
@@ -46,6 +48,7 @@ function txOut(state, tx) {
     id: tx.id, date: tx.date, amount: tx.amount, merchant: tx.merchant, description: tx.description ?? null,
     mcc: tx.mcc ?? null, source: tx.source, category_source: tx.category_source,
     category_confidence: tx.category_confidence, category: categoryOut(state, tx.category_id), account_id: tx.account_id ?? null,
+    account_label: tx.account_label ?? null,
   }
 }
 
@@ -75,6 +78,53 @@ function syncAll(state, nextId) {
   })
   if (created) checkBudgetAlerts(state, nextId)
   return { accounts, created }
+}
+
+/**
+ * The same payment arriving twice: once by SMS on the day, once in a statement import.
+ * Same direction, same amount (within 5% when the SMS was in a foreign currency),
+ * dates at most 3 days apart, and not already paired with another one.
+ */
+function findCounterpart(state, { amount, date, foreign }, source) {
+  return state.transactions.find(
+    (tx) =>
+      tx.source === source && !tx.paired && Math.sign(tx.amount) === Math.sign(amount) &&
+      Math.abs(daysBetween(tx.date, date)) <= 3 &&
+      (foreign || tx.foreign
+        ? Math.abs(Math.abs(tx.amount) - Math.abs(amount)) <= 0.05 * Math.abs(amount)
+        : Math.abs(tx.amount - amount) < 0.01),
+  )
+}
+
+function logOneSms(state, nextId, text, sender) {
+  const parsed = parseSms(text, { sender })
+  if (parsed.type === 'ignore') return { status: 'ignored', reason: parsed.reason }
+  const smsHash = hashString(text.replace(/\s+/g, ' ').trim())
+  if (state.transactions.some((tx) => tx.sms_hash === smsHash)) return { status: 'duplicate' }
+
+  const amount = parsed.type === 'debit' ? -parsed.amountILS : parsed.amountILS
+  const foreign = parsed.currency !== 'ILS'
+  const twin = findCounterpart(state, { amount, date: parsed.date, foreign }, 'import')
+  if (twin) {
+    twin.paired = true
+    twin.sms_hash = smsHash
+    return { status: 'duplicate', transaction: txOut(state, twin) }
+  }
+
+  const card = parsed.issuer ? `${parsed.issuer}${parsed.last4 ? ` ••${parsed.last4}` : ''}` : parsed.last4 ? `••${parsed.last4}` : null
+  const merchant = parsed.merchant || card || 'Card payment'
+  const tx = {
+    id: nextId('tx'), account_id: null, external_id: null, date: parsed.date, amount: round2(amount), merchant,
+    mcc: null, description: foreign ? `${parsed.currency} ${parsed.amount} (≈)` : null, source: 'sms', account_label: card,
+    sms_hash: smsHash, foreign, category_id: null, category_source: 'default', category_confidence: 0,
+    created_at: new Date().toISOString(),
+  }
+  // Categorise on the merchant only: the SMS text names the card company, which is not what was bought.
+  const categorizer = new Categorizer(state)
+  const res = categorizer.categorize(merchant, tx.amount)
+  Object.assign(tx, { category_id: categorizer.categoryId(res.key), category_source: res.source, category_confidence: res.confidence })
+  state.transactions.push(tx)
+  return { status: 'logged', transaction: txOut(state, tx) }
 }
 
 /* ----------------------------------------------------------- the API */
@@ -159,6 +209,8 @@ export const localApi = {
       const tx = state.transactions.find((x) => x.id === id)
       if (!tx) throw new ApiError(404, 'Transaction not found')
       if (tx.source === 'bank') throw new ApiError(409, 'Bank transactions are read-only')
+      // Deleting one half of an SMS/statement pair frees the other to pair again.
+      if (tx.sms_hash) for (const other of state.transactions) if (other !== tx && other.sms_hash === tx.sms_hash) other.paired = false
       state.transactions = state.transactions.filter((x) => x.id !== id)
       for (const m of state.messages) if (m.transaction_id === id) m.transaction_id = null
       return null
@@ -309,6 +361,71 @@ export const localApi = {
       return null
     }),
 
+  /* ------------------------------------------- automatic payments */
+  /** Log one bank/card SMS (from the phone's automation or the share sheet). */
+  logSms: (text, sender = '') =>
+    write((state, nextId) => {
+      const res = logOneSms(state, nextId, String(text || '').slice(0, 2000), sender)
+      if (res.status === 'logged' && res.transaction.amount < 0) checkBudgetAlerts(state, nextId)
+      return res
+    }),
+
+  /** Log a pasted block of several messages. */
+  logSmsBatch: (block) =>
+    write((state, nextId) => {
+      const results = splitMessages(block).slice(0, 500).map((text) => ({ text, ...logOneSms(state, nextId, text, '') }))
+      if (results.some((r) => r.status === 'logged')) checkBudgetAlerts(state, nextId)
+      const count = (status) => results.filter((r) => r.status === status).length
+      return { results, logged: count('logged'), duplicates: count('duplicate'), ignored: count('ignored') }
+    }),
+
+  /**
+   * Import statement rows ({date, merchant, amount} with expenses negative) under an
+   * account label such as "Max" or "Otsar HaHayal". Re-importing the same file adds nothing.
+   */
+  importStatement: ({ rows, label }) =>
+    write((state, nextId) => {
+      const account = String(label || 'Import').trim().slice(0, 40) || 'Import'
+      const known = new Set(state.transactions.filter((tx) => tx.external_id).map((tx) => tx.external_id))
+      const seen = {}
+      const categorizer = new Categorizer(state)
+      let created = 0
+      let duplicates = 0
+      for (const row of rows) {
+        const base = `${account}|${row.date}|${row.amount}|${row.merchant}`
+        seen[base] = (seen[base] || 0) + 1
+        const externalId = `imp-${hashString(`${base}|${seen[base]}`)}`
+        if (known.has(externalId)) {
+          duplicates += 1
+          continue
+        }
+        const tx = {
+          id: nextId('tx'), account_id: null, external_id: externalId, date: row.date, amount: row.amount,
+          merchant: row.merchant, mcc: null, description: null, source: 'import', account_label: account,
+          category_id: null, category_source: 'default', category_confidence: 0, created_at: new Date().toISOString(),
+        }
+        const twin = findCounterpart(state, tx, 'sms')
+        if (twin) {
+          // Already logged from its SMS: keep that one, now confirmed by the statement.
+          twin.paired = true
+          twin.external_id = externalId
+          if (twin.category_source === 'default') {
+            twin.merchant = row.merchant
+            categorizer.apply(twin)
+          }
+          known.add(externalId)
+          duplicates += 1
+          continue
+        }
+        categorizer.apply(tx)
+        state.transactions.push(tx)
+        known.add(externalId)
+        created += 1
+      }
+      if (created) checkBudgetAlerts(state, nextId)
+      return { created, duplicates }
+    }),
+
   /* ---------------------------------------------- phone-mode extras */
   unread: () => read((state) => state.meta.unread || 0),
   markRead: () =>
@@ -355,7 +472,7 @@ export const localApi = {
 
   exportBackup: () => read((state) => state),
   importBackup: async (data) => {
-    const state = validateBackup(data)
+    const state = ensureCategories(validateBackup(data))
     await queue.replace(state)
     return null
   },

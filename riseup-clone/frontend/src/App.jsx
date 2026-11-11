@@ -7,6 +7,7 @@ import { useApi, useOnline } from './hooks/useApi'
 import { showPhoneNotifications } from './local/phoneNotify'
 import { CategoriesProvider } from './hooks/useCategories'
 import { ToastProvider } from './components/ui'
+import { IncomingSms } from './components/AutoPayments'
 import Dashboard from './components/Dashboard'
 import TransactionsTable from './components/TransactionsTable'
 import WhatsAppSimulator from './components/WhatsAppSimulator'
@@ -156,6 +157,7 @@ export default function App() {
     <div dir={dir} lang={lang} className="min-h-screen">
       <ToastProvider>
         <CategoriesProvider>
+          {IS_LOCAL && <IncomingSms />}
           <Header />
           <OfflineBanner />
           <main className="mx-auto max-w-app px-4 pb-28 pt-4">

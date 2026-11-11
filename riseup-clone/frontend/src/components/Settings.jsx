@@ -7,6 +7,7 @@ import { useCategories } from '../hooks/useCategories'
 import { notificationsSupported, requestNotificationPermission } from '../local/phoneNotify'
 import { categoryName, formatDateTime, formatMoney } from '../utils/format'
 import { CategoryIcon, ErrorState, LoadingBlock, Toggle, useToast } from './ui'
+import AutoPayments from './AutoPayments'
 
 export default function Settings() {
   const { t } = useTranslation()
@@ -18,6 +19,7 @@ export default function Settings() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{t('settings.title')}</h1>
+      {IS_LOCAL && <AutoPayments />}
       {IS_LOCAL && <YourData />}
       <ProfileForm settings={settings} onSaved={setData} />
       <Notifications settings={settings} onSaved={setData} />

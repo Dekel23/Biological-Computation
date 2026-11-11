@@ -9,6 +9,9 @@
  */
 import { daysInMonth, fromISO, monthBounds, round2, shiftMonth, todayISO } from './dates'
 
+/** Transactions that come from an account statement (not typed in by hand). */
+export const ACCOUNT_SOURCES = new Set(['bank', 'import', 'sms'])
+
 export function computeBottomLine(state, month = null, today = todayISO()) {
   const [first, last] = monthBounds(month, today)
   const isCurrent = first <= today && today <= last
@@ -31,13 +34,14 @@ export function computeBottomLine(state, month = null, today = todayISO()) {
 
   for (const tx of txs) {
     const cat = cats[tx.category_id]
+    if (cat.key === 'card_bill') continue // the card's own charges are already counted
     if (tx.amount > 0) {
       if (cat.is_income) actualIncome += tx.amount
       else add(spentByCat, tx.category_id, -tx.amount) // refund reduces that category's spend
       continue
     }
     const spend = -tx.amount
-    if (cat.key === 'cash' && tx.source === 'bank') {
+    if (cat.key === 'cash' && ACCOUNT_SOURCES.has(tx.source)) {
       withdrawnCash += spend
       add(dailyWithdrawn, tx.date, spend)
       continue
