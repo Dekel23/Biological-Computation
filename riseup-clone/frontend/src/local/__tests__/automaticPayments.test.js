@@ -54,6 +54,15 @@ describe('automatic payments (phone mode)', () => {
     expect(page.items.filter((tx) => tx.merchant === 'קפה קפה')).toHaveLength(2)
   })
 
+  it('replaces an SMS’s estimated foreign amount with the billed shekel amount', async () => {
+    const api = await freshApi()
+    const sms = await api.logSms(`Isracard: Purchase of USD 17.99 at NETFLIX.COM approved on ${dm(today)} on card ending 1234`)
+    expect(sms.transaction.amount).toBe(-66.56)
+    expect(await api.importStatement({ label: 'Isracard', rows: [{ date: today, merchant: 'NETFLIX.COM', amount: -65.2 }] })).toEqual({ created: 0, duplicates: 1 })
+    const page = await api.transactions()
+    expect(page.items.map((tx) => tx.amount)).toEqual([-65.2])
+  })
+
   it('does not count the bank’s card-bill payment as spending', async () => {
     const api = await freshApi()
     await api.importStatement({

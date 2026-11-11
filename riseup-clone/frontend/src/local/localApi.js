@@ -406,9 +406,14 @@ export const localApi = {
         }
         const twin = findCounterpart(state, tx, 'sms')
         if (twin) {
-          // Already logged from its SMS: keep that one, now confirmed by the statement.
+          // Already logged from its SMS: keep that one, now confirmed by the statement –
+          // and for a foreign-currency charge, take the exact shekel amount actually billed.
           twin.paired = true
           twin.external_id = externalId
+          if (twin.foreign) {
+            twin.amount = row.amount
+            twin.foreign = false
+          }
           if (twin.category_source === 'default') {
             twin.merchant = row.merchant
             categorizer.apply(twin)
